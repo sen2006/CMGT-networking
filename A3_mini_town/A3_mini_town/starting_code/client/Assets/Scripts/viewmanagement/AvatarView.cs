@@ -30,6 +30,8 @@ public class AvatarView : MonoBehaviour
     private SpeechBubble _speechBubble; //reference to the speech bubble so we can say stuff
     private Animator _animator = null;  //if present a reference to the animator so we can check if we are walking
 
+    [SerializeField] private GameObject _ring;
+
     private void Awake()
     {
         //this should always be present
@@ -59,6 +61,17 @@ public class AvatarView : MonoBehaviour
     {
         _target = pEndPosition;
         _moving = true;
+        updateAnimator();
+    }
+
+    /**
+     * Teleports the view to the endposition.
+     */
+    public void Teleport(Vector3 pEndPosition)
+    {
+        transform.localPosition = pEndPosition;
+        _target = pEndPosition;
+        _moving = false;
         updateAnimator();
     }
 
@@ -101,6 +114,11 @@ public class AvatarView : MonoBehaviour
         _speechBubble.Clear();
         Destroy(gameObject, 0.6f);
         enabled = false;
+    }
+
+    public void ShowRing(bool state)
+    {
+        _ring.SetActive(state);
     }
 
 	/**

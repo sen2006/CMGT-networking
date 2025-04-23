@@ -5,7 +5,7 @@
     public class UpdateAvatarMessage : ISerializable
     {
         Avatar avatar;
-        internal UpdateAvatarMessage() { }
+        public UpdateAvatarMessage() { }
         public UpdateAvatarMessage(Avatar avatar) { this.avatar = avatar; }
 
         public Avatar GetAvatar() => avatar;

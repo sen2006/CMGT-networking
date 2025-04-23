@@ -2,17 +2,21 @@
 using System.Net;
 using shared;
 
+
 class TCPServerSample
 {
-	public static void Main(string[] args)
+
+    private static int nextID = 0;
+    public static void Main(string[] args)
 	{
 		TCPServerSample server = new TCPServerSample();
 		server.run();
 	}
 
-	private TcpListener listener;
-	private Dictionary<int, ClientData> clients = new Dictionary<int, ClientData>();
-	private Queue<Message> pendingMessages = new Queue<Message>();
+	internal static TcpListener listener;
+	//internal static Dictionary<int, ClientData> clients = new Dictionary<int, ClientData>();
+	internal static Dictionary<ClientData, Avatar> clients = new Dictionary<ClientData, Avatar>();
+	internal static Queue<Message> pendingMessages = new Queue<Message>();
 
 	private void run()
 	{
@@ -30,10 +34,16 @@ class TCPServerSample
 		}
 	}
 
-    private void removeClient(ClientData client)
+	private void removeClient(ClientData client)
 	{
-		clients.Remove(client.GetID());
-		pendingMessages.Enqueue(new Message(new RemoveAvatarMessage(client.GetID()), clients.Values.ToList()));
+		Console.WriteLine("removed a client from the server");
+        pendingMessages.Enqueue(new Message(new RemoveAvatarMessage(clients[client].GetID()), clients.Keys.ToList()));
+        clients.Remove(client);
+		try
+		{
+			client.GetRawClient().Close();
+		}
+		catch { }
 	}
 
 	private void processNewClients()
@@ -42,68 +52,83 @@ class TCPServerSample
 		{
 			TcpClient acceptedClient = listener.AcceptTcpClient();
 			ClientData acceptedClientData = new ClientData(acceptedClient);
+			Avatar newAvatar = new Avatar(nextID++, new Random().Next(0, 1000));
 
-			pendingMessages.Enqueue(new Message(new AcceptClientMessage(acceptedClientData.GetAvatar()), acceptedClientData));
-            pendingMessages.Enqueue(new Message(new UpdateAvatarMessage(acceptedClientData.GetAvatar()), clients.Values.ToList()));
+            clients.Add(acceptedClientData, newAvatar);
 
-            clients.Add(acceptedClientData.GetID(), acceptedClientData);
+            pendingMessages.Enqueue(new Message(new AcceptClientMessage(newAvatar.GetID()), acceptedClientData));
+			pendingMessages.Enqueue(new Message(new UpdateAllAvatarsMessage(clients.Values.ToList()), acceptedClientData));
+			pendingMessages.Enqueue(new Message(new UpdateAvatarMessage(newAvatar), clients.Keys.ToList()));
+
 			Console.WriteLine("Accepted new client.");
 		}
 	}
 
 	private void processExistingClients()
 	{
-		foreach (ClientData client in clients.Values)
+		foreach (ClientData client in clients.Keys)
 		{
-			client.HeartbeatTick();
-			if (client.HeartbeatFailed())
+			if (client.Available > 0)
 			{
-				removeClient(client);
-			}
 
-			if (client.Available == 0) continue;
+				//Console.WriteLine("recieved message from client");
 
-			NetworkStream stream = client.GetStream();
-            Object readObject = null;
+				NetworkStream stream = client.GetStream();
+				object readObject = null;
 
-			// a try in case a client send something that could not be read
-            try
+				// a try in case a client send something that could not be read
+				try
+				{
+					readObject = StreamUtil.ReadObject(stream);
+				}
+				catch (Exception e)
+				{
+					Console.WriteLine($"error reading client message");
+					continue;
+				}
+				if (readObject is HeartBeatMessage)
+				{
+                    client.SendHeartbeat();
+                }
+				if (readObject is ClientChatMessage chatMessage)
+				{
+					string messageIn = chatMessage.readText();
+                    if (messageIn[0] == '/')
+                    {
+						CommandHandler.HandleCommand(client, messageIn);
+                    }
+					else
+						pendingMessages.Enqueue(new Message(new ServerChatMessage(chatMessage.readText(), clients[client].GetID()), clients.Keys.ToList()));
+				}
+				else if (readObject is ClientMoveRequest clientMoveRequest)
+				{
+					clients[client].SetPos(clientMoveRequest.GetPosition());
+					pendingMessages.Enqueue(new Message(new UpdateAvatarMessage(clients[client]), clients.Keys.ToList()));
+				}
+			} else
 			{
-                readObject = StreamUtil.ReadObject(stream);
-			}
-			catch (Exception e)
-			{
-				Console.WriteLine($"error reading client message");
-				continue;
-			}
-            if (readObject is HeartBeatMessage heartBeatMessage)
-            {
-				client.SendHeartbeat();
+                client.HeartbeatTick();
+                if (client.HeartbeatFailed())
+                {
+                    Console.WriteLine("a client failed its heartbeat");
+                    removeClient(client);
+                }
             }
-            else if (readObject is ClientChatMessage chatMessage)
-			{
-
-			}
-			else if (readObject is ClientMoveRequest clientMoveRequest)
-			{
-				clients[client.GetID()].MoveAvatar(clientMoveRequest.GetPosition());
-				pendingMessages.Enqueue(new Message(new UpdateAvatarMessage(client.GetAvatar()), clients.Values.ToList()));
-			}
-		}
+        }
 	}
 
-    private void sendMessages()
-    {
-		while(pendingMessages.Count>0)
+	private void sendMessages()
+	{
+		while (pendingMessages.Count > 0)
 		{
 			Message message = pendingMessages.Dequeue();
 			message.Send();
 		}
 		pendingMessages.Clear();
-    }
+	}
 }
 
-class Message
+internal class Message
 {
 	readonly List<ClientData> recipients = new List<ClientData>();
 	readonly ISerializable toSend;
@@ -114,29 +139,39 @@ class Message
 		recipients.Add(recipient);
 	}
 
-    public Message(ISerializable sendObject, List<ClientData> recipients)
-    {
-        toSend = sendObject;
-        this.recipients.AddRange(recipients);
-    }
-
-    public void AddRecipient(ClientData recipient)
+	public Message(ISerializable sendObject, List<ClientData> recipients)
 	{
-        recipients.Add(recipient);
-    }
+		toSend = sendObject;
+		this.recipients.AddRange(recipients);
+	}
+
+	public void AddRecipient(ClientData recipient)
+	{
+		recipients.Add(recipient);
+	}
 
 	public void Send()
 	{
 		WriteObjectToAll(recipients, toSend);
 	}
 
-    static void WriteObjectToAll<T>(List<ClientData> clients, T pObject) where T : ISerializable
-    {
-        foreach (ClientData client in clients)
-        {
-			if (!clients.Contains(client)) continue;
-            StreamUtil.WriteObject(client.GetStream(), pObject);
-        }
-    }
+	static void WriteObjectToAll<T>(List<ClientData> SendList, T pObject) where T : ISerializable
+	{
+		foreach (ClientData client in SendList)
+		{
+			try
+			{
+				if (TCPServerSample.clients.Keys.Contains(client))
+					StreamUtil.WriteObject(client.GetStream(), pObject);
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine("an error occured when trying to write an object to client, removing client:");
+				Console.WriteLine(e.Message);
+				TCPServerSample.clients.Remove(client);
+			}
+		}
+	}
 }
+
 

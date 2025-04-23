@@ -22,8 +22,8 @@ public class ChatLobbyClient : MonoBehaviour
     [SerializeField] private int _port = 55555;
 
     private static TcpClient client;
-    private shared.Avatar avatar;
-    private readonly Dictionary<int,shared.Avatar> avatarDictionary = new Dictionary<int, shared.Avatar>();
+    private int ID = -1;
+    private bool accepted;
 
     private void Start()
     {
@@ -64,10 +64,10 @@ public class ChatLobbyClient : MonoBehaviour
     private void onChatTextEntered(string pText)
     {
         _panelWrapper.ClearInput();
-        sendString(pText);
+        sendChat(pText);
     }
 
-    private void sendString(string pOutString)
+    private void sendChat(string pOutString)
     {
         try
         {
@@ -93,11 +93,12 @@ public class ChatLobbyClient : MonoBehaviour
             if (client.Available > 0)
             {
                 ISerializable readObject = StreamUtil.ReadObject(client.GetStream());
-                if (avatar == null) 
+                if (accepted == false) 
                 { 
                     if (readObject is AcceptClientMessage acceptClientMessage)
                     {
-                        avatar = acceptClientMessage.GetAvatar();
+                        ID = acceptClientMessage.GetId();
+                        accepted = true;
                     }
                 }
                 else
@@ -106,27 +107,36 @@ public class ChatLobbyClient : MonoBehaviour
                     {
                         string message = serverChatMessage.readText();
                         Debug.Log("Received:" + message);
-                        showMessage(message);
+                        showMessage(message, serverChatMessage.getSenderID());
                     }
                     else if (readObject is UpdateAvatarMessage updateAvatarMessage)
                     {
                         shared.Avatar readAvatar = updateAvatarMessage.GetAvatar();
-                        if (readAvatar.GetID() == avatar.GetID())
-                            avatar = readAvatar;
-                        else
-                            avatarDictionary[readAvatar.GetID()] = readAvatar;
+                        if (!_avatarAreaManager.HasAvatarView(readAvatar.GetID()))
+                        {
+                            _avatarAreaManager.AddAvatarView(readAvatar.GetID());
+                        }
+                        AvatarView view = _avatarAreaManager.GetAvatarView(readAvatar.GetID());
+                        view.Move(new Vector3(readAvatar.GetPos().X, readAvatar.GetPos().Y, readAvatar.GetPos().Z));
+                        view.SetSkin(readAvatar.getSkinID());
                     }
                     else if (readObject is UpdateAllAvatarsMessage updateAllAvatarsMessage)
                     {
-                        avatarDictionary.Clear();
+                        _avatarAreaManager.Clear();
                         foreach (shared.Avatar readAvatar in updateAllAvatarsMessage.GetAvatars())
                         {
-                            avatarDictionary[readAvatar.GetID()] = readAvatar;
+                            AvatarView view = _avatarAreaManager.AddAvatarView(readAvatar.GetID());
+                            if (readAvatar.GetID()==ID)
+                            {
+                                view.ShowRing(true);
+                            }
+                            view.Teleport(new Vector3(readAvatar.GetPos().X, readAvatar.GetPos().Y, readAvatar.GetPos().Z));
+                            view.SetSkin(readAvatar.getSkinID());
                         }
                     }
                     else if (readObject is RemoveAvatarMessage removeAvatarMessage)
                     {
-                        avatarDictionary.Remove(removeAvatarMessage.GetID());
+                        _avatarAreaManager.RemoveAvatarView(removeAvatarMessage.GetID());
                     }
                 }
             }
@@ -140,28 +150,19 @@ public class ChatLobbyClient : MonoBehaviour
         }
     }
 
-    private void showMessage(string pText)
+    private void showMessage(string pText, int senderID)
     {
-        //This is a stub for what should actually happen
-        //What should actually happen is use an ID that you got from the server, to get the correct avatar
-        //and show the text message through that
-        List<int> allAvatarIds = _avatarAreaManager.GetAllAvatarIds();
-        
-        if (allAvatarIds.Count == 0)
-        {
-            Debug.Log("No avatars available to show text through:" + pText);
-            return;
-        }
-
-        int randomAvatarId = allAvatarIds[UnityEngine.Random.Range(0, allAvatarIds.Count)];
-        AvatarView avatarView = _avatarAreaManager.GetAvatarView(randomAvatarId);
+        AvatarView avatarView = _avatarAreaManager.GetAvatarView(senderID);
         avatarView.Say(pText);
     }
 
     private static void HeartBeat()
     {
-        StreamUtil.WriteObject(client.GetStream(), new HeartBeatMessage());
-        Thread.Sleep(500);
+        while (true)
+        {
+            StreamUtil.WriteObject(client.GetStream(), new HeartBeatMessage());
+            Thread.Sleep(500);
+        }
     }
 
 }

@@ -5,24 +5,22 @@
 
     public class AcceptClientMessage : ISerializable
     {
-        Avatar avatar;
+        int id;
 
-        internal AcceptClientMessage() { }
-        public AcceptClientMessage(Avatar avatar)
-        {
-            this.avatar = avatar;
-        }
+
+        public AcceptClientMessage() { }
+        public AcceptClientMessage(int id) { this.id = id; }
+
+        public int GetId() { return id; }
         
-        public Avatar GetAvatar() { return avatar; }
-
         public void Serialize(Packet pPacket)
         {
-            pPacket.Write(avatar);
+            pPacket.Write(id);
         }
 
         public void Deserialize(Packet pPacket)
         {
-            avatar = (Avatar)pPacket.ReadObject();
+            id = pPacket.ReadInt();
         }
     }
 }

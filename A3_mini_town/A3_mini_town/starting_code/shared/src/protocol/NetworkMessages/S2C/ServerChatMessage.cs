@@ -7,20 +7,28 @@ namespace shared
     public class ServerChatMessage : ISerializable
     {
         string text;
+        int senderID;
 
-        internal ServerChatMessage() { }
-        public ServerChatMessage(string text) { this.text = text; }
+        public ServerChatMessage() { }
+        public ServerChatMessage(string text, int senderID)
+        {
+            this.text = text;
+            this.senderID = senderID;
+        }
 
         public string readText() => text;
+        public int getSenderID() => senderID;
 
         public void Serialize(Packet pPacket)
         {
             pPacket.Write(text);
+            pPacket.Write(senderID);
         }
 
         public void Deserialize(Packet pPacket)
         {
             text = pPacket.ReadString();
+            senderID = pPacket.ReadInt();
         }
     }
 }

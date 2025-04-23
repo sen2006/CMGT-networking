@@ -25,13 +25,11 @@ namespace shared
 		private static void WriteBytes(NetworkStream pStream, byte[] pMessage)
 		{
 			if (pMessage.Length == 0) return;
-			try
-			{
-				//convert message length to 4 bytes and write those bytes into the stream
-				pStream.Write(BitConverter.GetBytes(pMessage.Length), 0, 4);
-				//now send the bytes of the message themselves
-				pStream.Write(pMessage, 0, pMessage.Length);
-			} catch { }
+
+			//convert message length to 4 bytes and write those bytes into the stream
+			pStream.Write(BitConverter.GetBytes(pMessage.Length), 0, 4);
+			//now send the bytes of the message themselves
+			pStream.Write(pMessage, 0, pMessage.Length);
 		}
 
 		/**
@@ -39,13 +37,11 @@ namespace shared
 		 */
 		private static byte[] ReadBytes(NetworkStream pStream)
 		{
-			try
-			{
-				//get the message size first
-				int byteCountToRead = BitConverter.ToInt32(Read(pStream, 4), 0);
-				//then read that amount of bytes
-				return Read(pStream, byteCountToRead);
-			} catch { return null; }
+
+			//get the message size first
+			int byteCountToRead = BitConverter.ToInt32(Read(pStream, 4), 0);
+			//then read that amount of bytes
+			return Read(pStream, byteCountToRead);
 		}
 
 		public static void WriteObject<T>(NetworkStream pStream, T pObject) where T : ISerializable

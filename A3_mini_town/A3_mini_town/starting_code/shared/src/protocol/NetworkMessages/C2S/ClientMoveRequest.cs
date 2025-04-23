@@ -9,7 +9,7 @@ namespace shared
     {
         Vector3 position;
 
-        internal ClientMoveRequest() { }
+        public ClientMoveRequest() { }
         public ClientMoveRequest(Vector3 position) { this.position = position; }
         public ClientMoveRequest(float x, float y, float z) { this.position = new Vector3(x,y,z); }
 

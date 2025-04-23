@@ -4,7 +4,7 @@
     {
         string text;
 
-        internal ClientChatMessage() { }
+        public ClientChatMessage() { }
         public ClientChatMessage(string text) { this.text = text; }
 
         public string readText() => text;

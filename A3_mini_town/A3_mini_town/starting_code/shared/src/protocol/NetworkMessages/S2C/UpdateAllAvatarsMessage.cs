@@ -7,7 +7,7 @@ namespace shared
     public class UpdateAllAvatarsMessage : ISerializable
     {
         Avatar[] avatars;
-        internal UpdateAllAvatarsMessage() { }
+        public UpdateAllAvatarsMessage() { }
         public UpdateAllAvatarsMessage(List<Avatar> avatarList) { this.avatars = avatarList.ToArray(); }
 
         public Avatar[] GetAvatars() => avatars;

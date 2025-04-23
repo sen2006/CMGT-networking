@@ -5,30 +5,25 @@ using System.Reflection.Metadata.Ecma335;
 
 class ClientData
 {
-    private static int nextID = 0;
-    private static readonly int heartbeatAmount = 20;
+    private static readonly int heartbeatAmount = 40;
 
     int heartbeat;
 
-    readonly TcpClient client;
-    Avatar avatar;    
+    readonly TcpClient client;  
 
 
     public ClientData(TcpClient pClient)
     {
         heartbeat = heartbeatAmount;
         client = pClient;
-        avatar = new Avatar(nextID++, new Random().Next(0, 1000));
     }
 
     public TcpClient GetClient() => client;
-    public int GetID() => avatar.GetID();
     public int Available => client.Available;
     public NetworkStream GetStream() => client.GetStream();
-    public Avatar GetAvatar() => avatar;
-    public void MoveAvatar(Vector3 pos) => avatar.SetPos(pos);
-    public void SendHeartbeat() => heartbeat= heartbeatAmount;
+    public void SendHeartbeat() => heartbeat = heartbeatAmount;
     public void HeartbeatTick() => heartbeat--;
     public bool HeartbeatFailed() => heartbeat < 0;
+    public TcpClient GetRawClient() => client;
 }
 

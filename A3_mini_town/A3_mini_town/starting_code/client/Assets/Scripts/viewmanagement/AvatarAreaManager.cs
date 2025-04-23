@@ -96,6 +96,14 @@ public class AvatarAreaManager : MonoBehaviour
     }
 
     /**
+     * clears all avatars from the view
+     */
+    public void Clear()
+    {
+        _avatarViews.Clear();
+    }
+
+    /**
      * Returns a list of all of the current avatar ids we are managing.
      * This allows for easy updating/comparing with another list of avatar ids.
      * 

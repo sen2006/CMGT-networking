@@ -4,7 +4,7 @@
     {
         int id;
 
-        internal RemoveAvatarMessage() { }
+        public RemoveAvatarMessage() { }
         public RemoveAvatarMessage(int id) { 
             this.id = id;
         }

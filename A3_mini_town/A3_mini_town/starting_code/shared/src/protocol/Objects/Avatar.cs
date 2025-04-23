@@ -9,7 +9,7 @@ namespace shared
         private int skinID;
         private Vector3 position;
 
-        internal Avatar(){}
+        public Avatar(){}
 
         public Avatar(int id, int skinID)
         {
@@ -20,6 +20,12 @@ namespace shared
         public int GetID() => id;
         public int getSkinID() => skinID;
         public void SetPos(Vector3 pos) => position = pos;
+        public Vector3 GetPos() => position;
+
+        public void setSkinID(int skinID)
+        {
+            this.skinID = skinID;
+        }
 
         public void Serialize(Packet pPacket)
         {
