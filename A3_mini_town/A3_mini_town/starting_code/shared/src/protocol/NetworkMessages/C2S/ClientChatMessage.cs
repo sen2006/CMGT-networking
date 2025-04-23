@@ -1,8 +1,13 @@
 ﻿namespace shared
 {
-    public class SimpleMessage : ISerializable
+    public class ClientChatMessage : ISerializable
     {
         string text;
+
+        internal ClientChatMessage() { }
+        public ClientChatMessage(string text) { this.text = text; }
+
+        public string readText() => text;
 
         public void Serialize(Packet pPacket)
         {

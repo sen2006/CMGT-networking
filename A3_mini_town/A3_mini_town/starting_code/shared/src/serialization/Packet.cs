@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Numerics;
 
 namespace shared
 {
@@ -36,8 +37,15 @@ namespace shared
 		/// WRITE METHODS
 
 		public void Write (int pInt)							{		writer.Write(pInt);			}
+		public void Write (float pFloat)						{		writer.Write(pFloat);			}
 		public void Write (string pString)						{		writer.Write(pString);		}
 		public void Write (bool pBool)							{		writer.Write(pBool);		}
+		public void Write(Vector3 pVec3)
+		{
+			writer.Write(pVec3.X);
+			writer.Write(pVec3.Y);
+			writer.Write(pVec3.Z);
+		}
 		
 		public void Write (ISerializable pSerializable)			{
 			Write(pSerializable.GetType().FullName);
@@ -47,10 +55,12 @@ namespace shared
 		/// READ METHODS
 
 		public int ReadInt() { return reader.ReadInt32(); }
+		public float ReadFloat() { return reader.ReadSingle(); }
 		public string ReadString() { return reader.ReadString(); }
 		public bool ReadBool() { return reader.ReadBoolean(); }
+		internal Vector3 ReadVec3() { return new Vector3(ReadFloat(), ReadFloat(), ReadFloat()); }
 
-		public ISerializable ReadObject() 
+        public ISerializable ReadObject() 
 		{
 			Type type = Type.GetType(ReadString());
 			ISerializable obj = (ISerializable)Activator.CreateInstance(type);
@@ -74,6 +84,5 @@ namespace shared
 			//which is what we do here using ToArray()
 			return ((MemoryStream)writer.BaseStream).ToArray();
 		}
-
-	}
+    }
 }

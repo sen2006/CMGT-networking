@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics.Contracts;
 using System.Net.Sockets;
 
 namespace shared
@@ -20,29 +22,60 @@ namespace shared
 		/**
 		 * Writes the size of the given byte array into the stream and then the bytes themselves.
 		 */
-		public static void Write(NetworkStream pStream, byte[] pMessage)
+		private static void WriteBytes(NetworkStream pStream, byte[] pMessage)
 		{
-			//convert message length to 4 bytes and write those bytes into the stream
-			pStream.Write(BitConverter.GetBytes(pMessage.Length), 0, 4);
-			//now send the bytes of the message themselves
-			pStream.Write(pMessage, 0, pMessage.Length);
+			if (pMessage.Length == 0) return;
+			try
+			{
+				//convert message length to 4 bytes and write those bytes into the stream
+				pStream.Write(BitConverter.GetBytes(pMessage.Length), 0, 4);
+				//now send the bytes of the message themselves
+				pStream.Write(pMessage, 0, pMessage.Length);
+			} catch { }
 		}
 
 		/**
 		 * Reads the amount of bytes to receive from the stream and then the bytes themselves.
 		 */
-		public static byte[] Read(NetworkStream pStream)
+		private static byte[] ReadBytes(NetworkStream pStream)
 		{
-			//get the message size first
-			int byteCountToRead = BitConverter.ToInt32(Read(pStream, 4), 0);
-			//then read that amount of bytes
-			return Read(pStream, byteCountToRead);
+			try
+			{
+				//get the message size first
+				int byteCountToRead = BitConverter.ToInt32(Read(pStream, 4), 0);
+				//then read that amount of bytes
+				return Read(pStream, byteCountToRead);
+			} catch { return null; }
 		}
 
-		/**
+		public static void WriteObject<T>(NetworkStream pStream, T pObject) where T : ISerializable
+		{
+			Packet packet = new Packet();
+			packet.Write(pObject.GetType().FullName);
+			pObject.Serialize(packet);
+			WriteBytes(pStream,packet.GetBytes());
+		}
+
+		public static ISerializable ReadObject(NetworkStream pStream)
+		{
+			byte[] bytes = ReadBytes(pStream);
+			Packet packet = new Packet(bytes);
+            return packet.ReadObject();
+			
+		}
+
+		public static T ReadObject<T>(NetworkStream pStream) where T : ISerializable
+		{
+			ISerializable obj = ReadObject(pStream);
+            if (obj is T toReturn)
+				return toReturn;
+            return default;
+		}
+
+        /**
 		 * Read the given amount of bytes from the stream
 		 */
-		private static byte[] Read(NetworkStream pStream, int pByteCount)
+        private static byte[] Read(NetworkStream pStream, int pByteCount)
 		{
 			//create a buffer to hold all the requested bytes
 			byte[] bytes = new byte[pByteCount];

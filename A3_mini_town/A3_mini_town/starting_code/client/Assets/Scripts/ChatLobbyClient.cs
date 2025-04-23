@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
-using System.Text;
+using System.Threading;
 using UnityEngine;
 
 /**
@@ -12,6 +12,7 @@ using UnityEngine;
  */
 public class ChatLobbyClient : MonoBehaviour
 {
+    private static Thread heartbeatThread = new Thread(HeartBeat);
     //reference to the helper class that hides all the avatar management behind a blackbox
     private AvatarAreaManager _avatarAreaManager;
     //reference to the helper class that wraps the chat interface
@@ -20,7 +21,9 @@ public class ChatLobbyClient : MonoBehaviour
     [SerializeField] private string _server = "localhost";
     [SerializeField] private int _port = 55555;
 
-    private TcpClient _client;
+    private static TcpClient client;
+    private shared.Avatar avatar;
+    private readonly Dictionary<int,shared.Avatar> avatarDictionary = new Dictionary<int, shared.Avatar>();
 
     private void Start()
     {
@@ -32,14 +35,16 @@ public class ChatLobbyClient : MonoBehaviour
 
         _panelWrapper = FindFirstObjectByType<PanelWrapper>();
         _panelWrapper.OnChatTextEntered += onChatTextEntered;
+
+        heartbeatThread.Start();
     }
 
     private void connectToServer()
     {
         try
         {
-            _client = new TcpClient();
-            _client.Connect(_server, _port);
+            client = new TcpClient();
+            client.Connect(_server, _port);
             Debug.Log("Connected to server.");
         }
         catch (Exception e)
@@ -53,6 +58,7 @@ public class ChatLobbyClient : MonoBehaviour
     {
         Debug.Log("ChatLobbyClient: you clicked on " + pClickPosition);
         //TODO pass data to the server so that the server can send a position update to all clients (if the position is valid!!)
+        StreamUtil.WriteObject(client.GetStream(), new ClientMoveRequest(pClickPosition.x, pClickPosition.y, pClickPosition.z));
     }
 
     private void onChatTextEntered(string pText)
@@ -67,14 +73,13 @@ public class ChatLobbyClient : MonoBehaviour
         {
             //we are still communicating with strings at this point, this has to be replaced with either packet or object communication
             Debug.Log("Sending:" + pOutString);
-            byte[] outBytes = Encoding.UTF8.GetBytes(pOutString);
-            StreamUtil.Write(_client.GetStream(), outBytes);
+            StreamUtil.WriteObject(client.GetStream(), new ClientChatMessage(pOutString));
         }
         catch (Exception e)
         {
             //for quicker testing, we reconnect if something goes wrong.
             Debug.Log(e.Message);
-            _client.Close();
+            client.Close();
             connectToServer();
         }
     }
@@ -85,20 +90,52 @@ public class ChatLobbyClient : MonoBehaviour
     {
         try
         {
-            if (_client.Available > 0)
+            if (client.Available > 0)
             {
-                //we are still communicating with strings at this point, this has to be replaced with either packet or object communication
-                byte[] inBytes = StreamUtil.Read(_client.GetStream());
-                string inString = Encoding.UTF8.GetString(inBytes);
-                Debug.Log("Received:" + inString);
-                showMessage(inString);
+                ISerializable readObject = StreamUtil.ReadObject(client.GetStream());
+                if (avatar == null) 
+                { 
+                    if (readObject is AcceptClientMessage acceptClientMessage)
+                    {
+                        avatar = acceptClientMessage.GetAvatar();
+                    }
+                }
+                else
+                {
+                    if (readObject is ServerChatMessage serverChatMessage)
+                    {
+                        string message = serverChatMessage.readText();
+                        Debug.Log("Received:" + message);
+                        showMessage(message);
+                    }
+                    else if (readObject is UpdateAvatarMessage updateAvatarMessage)
+                    {
+                        shared.Avatar readAvatar = updateAvatarMessage.GetAvatar();
+                        if (readAvatar.GetID() == avatar.GetID())
+                            avatar = readAvatar;
+                        else
+                            avatarDictionary[readAvatar.GetID()] = readAvatar;
+                    }
+                    else if (readObject is UpdateAllAvatarsMessage updateAllAvatarsMessage)
+                    {
+                        avatarDictionary.Clear();
+                        foreach (shared.Avatar readAvatar in updateAllAvatarsMessage.GetAvatars())
+                        {
+                            avatarDictionary[readAvatar.GetID()] = readAvatar;
+                        }
+                    }
+                    else if (readObject is RemoveAvatarMessage removeAvatarMessage)
+                    {
+                        avatarDictionary.Remove(removeAvatarMessage.GetID());
+                    }
+                }
             }
         }
         catch (Exception e)
         {
             //for quicker testing, we reconnect if something goes wrong.
             Debug.Log(e.Message);
-            _client.Close();
+            client.Close();
             connectToServer();
         }
     }
@@ -119,6 +156,12 @@ public class ChatLobbyClient : MonoBehaviour
         int randomAvatarId = allAvatarIds[UnityEngine.Random.Range(0, allAvatarIds.Count)];
         AvatarView avatarView = _avatarAreaManager.GetAvatarView(randomAvatarId);
         avatarView.Say(pText);
+    }
+
+    private static void HeartBeat()
+    {
+        StreamUtil.WriteObject(client.GetStream(), new HeartBeatMessage());
+        Thread.Sleep(500);
     }
 
 }
