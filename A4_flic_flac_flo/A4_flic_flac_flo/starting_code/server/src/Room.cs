@@ -54,7 +54,7 @@ namespace server
 		 */
 		public virtual void Update()
 		{
-			removeFaultyMembers();
+			RemoveFaultyMembers();
 			receiveAndProcessNetworkMessages();
 		}
 
@@ -62,7 +62,7 @@ namespace server
 		 * Iterate over all members and remove the ones that have issues.
 		 * Return true if any members were removed.
 		 */
-		protected void removeFaultyMembers() 
+		public void RemoveFaultyMembers() 
 		{
 			safeForEach(checkFaultyMember);
 		}
@@ -138,6 +138,19 @@ namespace server
 			}
 		}
 
-	}
+		public List<TcpMessageChannel> GetMembers => _members;
+
+        internal void MoveAllMembers(Room newRoom)
+        {
+			if (newRoom == null || _members.Count == 0) return;
+            for (int i = _members.Count - 1; i >= 0; i--)
+			{
+				TcpMessageChannel member = _members[i];
+	
+				newRoom.addMember(member);
+                removeMember(member);
+            }
+        }
+    }
 }
 

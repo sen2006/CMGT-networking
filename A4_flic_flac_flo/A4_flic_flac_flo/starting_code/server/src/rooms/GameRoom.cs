@@ -14,6 +14,29 @@ namespace server
 	 */
 	class GameRoom : Room
 	{
+		enum State
+		{
+			PlayerOneTurn,
+			PlayerTwoTrurn,
+			Finished
+		}
+
+		readonly static int[][] winStates =
+			[
+			[1, 2, 3],
+			[4, 5, 6],
+			[7, 8, 9],
+			[1, 4, 7],
+			[2, 5, 8],
+			[3, 6, 9],
+			[1, 5, 9],
+			[3, 5, 7],
+			];
+
+		private int wonMember;
+
+		private State gameState = State.PlayerOneTurn;
+
 		public bool IsGameInPlay { get; private set; }
 
 		//wraps the board to play on...
@@ -30,7 +53,9 @@ namespace server
 			IsGameInPlay = true;
 			addMember(pPlayer1);
 			addMember(pPlayer2);
-		}
+			updateClientState();
+
+        }
 
 		protected override void addMember(TcpMessageChannel pMember)
 		{
@@ -40,7 +65,7 @@ namespace server
 			RoomJoinedEvent roomJoinedEvent = new RoomJoinedEvent();
 			roomJoinedEvent.room = RoomJoinedEvent.Room.GAME_ROOM;
 			pMember.SendMessage(roomJoinedEvent);
-		}
+        }
 
 		public override void Update()
 		{
@@ -61,6 +86,7 @@ namespace server
 			{
 				handleMakeMoveRequest(pMessage as MakeMoveRequest, pSender);
 			}
+			else if (pMessage is ResignRequest) { HandleResign(pSender); }
 		}
 
 		private void handleMakeMoveRequest(MakeMoveRequest pMessage, TcpMessageChannel pSender)
@@ -68,14 +94,76 @@ namespace server
 			//we have two players, so index of sender is 0 or 1, which means playerID becomes 1 or 2
 			int playerID = indexOfMember(pSender) + 1;
 			//make the requested move (0-8) on the board for the player
-			_board.MakeMove(pMessage.move, playerID);
+			if (gameState == State.Finished) return;
+			if (!_board.IsAvalibleSpace(pMessage.move)) return;
 
-			//and send the result of the boardstate back to all clients
-			MakeMoveResult makeMoveResult = new MakeMoveResult();
-			makeMoveResult.whoMadeTheMove = playerID;
-			makeMoveResult.boardData = _board.GetBoardData();
-			sendToAll(makeMoveResult);
+            if ((gameState == State.PlayerOneTurn && playerID == 1) ||
+				(gameState == State.PlayerTwoTrurn && playerID == 2))
+			{
+				_board.MakeMove(pMessage.move, playerID);
+
+				//and send the result of the boardstate back to all clients
+				MakeMoveResult makeMoveResult = new MakeMoveResult();
+				makeMoveResult.whoMadeTheMove = playerID;
+				makeMoveResult.boardData = _board.GetBoardData();
+				sendToAll(makeMoveResult);
+
+				if (CheckGameState(pSender)) return;
+
+				switch (gameState)
+				{
+					case State.PlayerOneTurn: gameState = State.PlayerTwoTrurn; break;
+					case State.PlayerTwoTrurn: gameState = State.PlayerOneTurn; break;
+				}
+				updateClientState();
+            }
 		}
 
-	}
+		private bool CheckGameState(TcpMessageChannel lastMove)
+		{
+			foreach (int[] winState in winStates)
+			{
+				int checkState = _board.GetBoardData().board[winState[0]-1];
+				if (checkState == 0) continue;
+
+                if (_board.GetBoardData().board[winState[1]-1] == checkState &&
+                    _board.GetBoardData().board[winState[2]-1] == checkState)
+				{
+                    gameState = State.Finished;
+					wonMember = checkState;
+					Console.WriteLine(checkState+" won the game");
+
+					MoveAllMembers(_server.GetLobbyRoom());
+					_server.GetLobbyRoom().AnnounceWin(lastMove);
+
+                    return true;
+                }
+            }
+			return false;
+		}
+
+		private void updateClientState()
+		{
+			UpdateGameState message = new UpdateGameState();
+			message.playerOneName = _server.GetPlayerInfo(GetMembers[0]).GetName();
+			message.playerTwoName = _server.GetPlayerInfo(GetMembers[1]).GetName();
+			message.playerAtTurn = gameState == State.PlayerOneTurn ? 1 : 2;
+			sendToAll(message);
+		}
+
+		private void HandleResign(TcpMessageChannel pSender) 
+		{
+            gameState = State.Finished;
+			wonMember = indexOfMember(pSender) == 1 ? 1 : 2;
+            Console.WriteLine(wonMember + " won the game by resignation");
+			TcpMessageChannel winner = GetMembers[wonMember - 1];
+            MoveAllMembers(_server.GetLobbyRoom());
+            _server.GetLobbyRoom().AnnounceResign(winner);
+        }
+
+		public bool IsGameFinished()
+		{
+			return gameState == State.Finished;
+		}
+    }
 }

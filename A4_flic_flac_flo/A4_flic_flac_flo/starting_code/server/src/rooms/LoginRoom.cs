@@ -46,17 +46,39 @@ namespace server
 		/**
 		 * Tell the client he is accepted and move the client to the lobby room.
 		 */
-		private void handlePlayerJoinRequest (PlayerJoinRequest pMessage, TcpMessageChannel pSender)
+		private void handlePlayerJoinRequest(PlayerJoinRequest pMessage, TcpMessageChannel pSender)
 		{
-			Log.LogInfo("Moving new client to accepted...", this);
+			string clientName = pMessage.name;
 
 			PlayerJoinResponse playerJoinResponse = new PlayerJoinResponse();
-			playerJoinResponse.result = PlayerJoinResponse.RequestResult.ACCEPTED;
-			pSender.SendMessage(playerJoinResponse);
+			if (!IsValidUsername(clientName))
+			{
+				playerJoinResponse.result = PlayerJoinResponse.RequestResult.INVALIDNAME;
+                Log.LogInfo("New client has invalid name...", this);
+            }
+			else
+			{
+				_server.GetPlayerInfo(pSender).SetName(clientName);
+				Log.LogInfo("Moving new client to accepted...", this);
 
-			removeMember(pSender);
-			_server.GetLobbyRoom().AddMember(pSender);
-		}
+				playerJoinResponse.result = PlayerJoinResponse.RequestResult.ACCEPTED;
 
-	}
+				removeMember(pSender);
+				_server.GetLobbyRoom().AddMember(pSender);
+			}
+            pSender.SendMessage(playerJoinResponse);
+        }
+
+        private bool IsValidUsername(string name)
+        {
+            _server.SendToAll(new EmptyMessage());
+            _server.RemoveAllFaultyMembers();
+            if (name == null || name == "")
+                return false;
+            if (_server.GetPlayerInfo((playerInfo) => playerInfo.GetName().Equals(name)).Count > 0)
+                return false;
+            return true;
+        }
+
+    }
 }

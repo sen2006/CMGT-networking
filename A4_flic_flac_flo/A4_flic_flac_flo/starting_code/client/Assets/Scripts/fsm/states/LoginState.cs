@@ -85,13 +85,11 @@ public class LoginState : ApplicationStateWithView<LoginView>
 
     private void handlePlayerJoinResponse(PlayerJoinResponse pMessage)
     {
-        //Dont do anything with this info at the moment, just leave it to the RoomJoinedEvent
-        //We could handle duplicate name messages, get player info etc here
-        /*
-        if (pMessage.result == PlayerJoinResponse.State.ACCEPTED)
+        if (pMessage.result == PlayerJoinResponse.RequestResult.INVALIDNAME)
         {
+            view.TextConnectResults = "Invalid or Occupied name";
         }
-        */
+        
     }
 
     private void handleRoomJoinedEvent (RoomJoinedEvent pMessage)

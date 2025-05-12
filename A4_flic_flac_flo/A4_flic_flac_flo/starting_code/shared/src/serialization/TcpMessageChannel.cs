@@ -185,6 +185,7 @@ namespace shared {
 
         public void Close ()
         {
+            if (_client == null) return;
             try
             {
                 _client.Close();

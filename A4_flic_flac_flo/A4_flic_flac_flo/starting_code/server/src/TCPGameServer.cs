@@ -5,6 +5,7 @@ using shared;
 using System.Threading;
 using System.Collections.Generic;
 using System.Linq;
+using System.Diagnostics;
 
 namespace server {
 
@@ -22,6 +23,7 @@ namespace server {
 	 */
 	class TCPGameServer
 	{
+		static TCPGameServer _instance;
 
 		public static void Main(string[] args)
 		{
@@ -33,17 +35,24 @@ namespace server {
 
 		private LoginRoom _loginRoom;	//this is the room every new user joins
 		private LobbyRoom _lobbyRoom;	//this is the room a user moves to after a successful 'login'
-		private GameRoom _gameRoom;		//this is the room a user moves to when a game is succesfully started
+		//private GameRoom _gameRoom;		//this is the room a user moves to when a game is succesfully started
+		private List<GameRoom> _gameRooms = new List<GameRoom>();
 
 		//stores additional info for a player
 		private Dictionary<TcpMessageChannel, PlayerInfo> _playerInfo = new Dictionary<TcpMessageChannel, PlayerInfo>();
+        private List<TcpMessageChannel> _allMembers {get{return _playerInfo.Keys.ToList();}}
+        private List<PlayerInfo> _rawPlayerInfo {get{ return _playerInfo.Values.ToList(); }}
 
-		private TCPGameServer()
+        private static Thread heartBeat = new Thread(HeartBeat);
+
+        private TCPGameServer()
 		{
+            _instance = this;
 			//we have only one instance of each room, this is especially limiting for the game room (since this means you can only have one game at a time).
 			_loginRoom = new LoginRoom(this);
 			_lobbyRoom = new LobbyRoom(this);
-			_gameRoom = new GameRoom(this);
+			//_gameRoom = new GameRoom(this);
+			heartBeat.Start(0);
 		}
 
 		private void run()
@@ -70,20 +79,43 @@ namespace server {
 					_loginRoom.AddMember(channel);
 				}
 
+                RemoveEmptyGameRooms();
+
 				//now update every single room
 				_loginRoom.Update();
 				_lobbyRoom.Update();
-				_gameRoom.Update();
+				foreach (GameRoom gameRoom in _gameRooms)
+					gameRoom.Update();
 
 				Thread.Sleep(100);
 			}
 
 		}
-		
-		//provide access to the different rooms on the server 
-		public LoginRoom GetLoginRoom() { return _loginRoom; }
+
+        private void RemoveEmptyGameRooms()
+        {
+			
+            for (int i = _gameRooms.Count-1; i>=0; i--)
+			{
+                GameRoom gameRoom = _gameRooms[i];
+                if (gameRoom.IsGameFinished())
+                {
+					gameRoom.MoveAllMembers(_lobbyRoom);
+                    _gameRooms.Remove(gameRoom);
+                    Console.WriteLine("removing finished game room");
+                }
+                else if (gameRoom.GetMembers.Count < 2)
+				{
+					_gameRooms.Remove(gameRoom);
+					Console.WriteLine("removing empty game room");
+				}
+			}
+        }
+
+        //provide access to the different rooms on the server 
+        public LoginRoom GetLoginRoom() { return _loginRoom; }
 		public LobbyRoom GetLobbyRoom() { return _lobbyRoom; }
-		public GameRoom GetGameRoom() { return _gameRoom; }
+		public GameRoom GetGameRoom(int id) { return _gameRooms[id]; }
 
 		/**
 		 * Returns a handle to the player info for the given client 
@@ -99,6 +131,16 @@ namespace server {
 			return _playerInfo[pClient];
 		}
 
+		public List<TcpMessageChannel> GetAllMembers()
+		{
+			return _allMembers;
+		}
+
+        public List<PlayerInfo> GetRawPlayerInfo()
+        {
+            return _rawPlayerInfo;
+        }
+
 		/**
 		 * Returns a list of all players that match the predicate, e.g. to get a list of 
 		 * all players named bob, you would do:
@@ -106,7 +148,7 @@ namespace server {
 		 */
 		public List<PlayerInfo> GetPlayerInfo(Predicate<PlayerInfo> pPredicate)
 		{
-			return _playerInfo.Values.ToList<PlayerInfo>().FindAll(pPredicate);
+			return GetRawPlayerInfo().ToList().FindAll(pPredicate);
 		}
 
 		/**
@@ -117,7 +159,41 @@ namespace server {
 			_playerInfo.Remove(pClient);
 		}
 
-	}
+        public void SendToAll(ASerializable pMessage)
+        {
+            foreach (TcpMessageChannel member in GetAllMembers())
+            {
+                member.SendMessage(pMessage);
+            }
+        }
+
+        public void RemoveAllFaultyMembers()
+        {
+            _loginRoom.RemoveFaultyMembers();
+			_lobbyRoom.RemoveFaultyMembers();
+			foreach (GameRoom gameRoom in _gameRooms)
+				gameRoom.RemoveFaultyMembers();
+        }
+
+        public GameRoom GetGameNewRoom()
+        {
+			Console.WriteLine("New GameRoom created");
+            GameRoom toReturn = new GameRoom(this);
+			_gameRooms.Add(toReturn);
+			return toReturn;
+        }
+
+        private static void HeartBeat(object obj)
+        {
+            while (true)
+			{
+				_instance.SendToAll(new EmptyMessage());
+				_instance.RemoveAllFaultyMembers();
+				Thread.Sleep(10000);
+            }
+        }
+    }
+
 
 }
 

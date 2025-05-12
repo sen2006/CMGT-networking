@@ -1,4 +1,5 @@
 ﻿using shared;
+using System;
 
 /**
  * This is where we 'play' a game.
@@ -16,6 +17,7 @@ public class GameState : ApplicationStateWithView<GameView>
         base.EnterState();
         
         view.gameBoard.OnCellClicked += _onCellClicked;
+        view.ButtonResign.onClick.AddListener(Resign);
     }
 
     private void _onCellClicked(int pCellIndex)
@@ -39,27 +41,50 @@ public class GameState : ApplicationStateWithView<GameView>
 
     protected override void handleNetworkMessage(ASerializable pMessage)
     {
-        if (pMessage is MakeMoveResult)
+        if (pMessage is MakeMoveResult resultMessage) handleMakeMoveResult(resultMessage);
+        
+        else if (pMessage is UpdateGameState updateMessgae) handleUpdateGameState(updateMessgae);
+        
+        else if (pMessage is RoomJoinedEvent joinedMessage) handleRoomJoinedEvent(joinedMessage);
+    }
+
+    private void handleRoomJoinedEvent(RoomJoinedEvent pMessage)
+    {
+        //did we move to the game room?
+        if (pMessage.room == RoomJoinedEvent.Room.LOBBY_ROOM)
         {
-            handleMakeMoveResult(pMessage as MakeMoveResult);
+            fsm.ChangeState<LobbyState>();
         }
     }
 
     private void handleMakeMoveResult(MakeMoveResult pMakeMoveResult)
     {
         view.gameBoard.SetBoardData(pMakeMoveResult.boardData);
-
         //some label display
         if (pMakeMoveResult.whoMadeTheMove == 1)
         {
             player1MoveCount++;
-            view.playerLabel1.text = $"Player 1 (Movecount: {player1MoveCount})";
         }
         if (pMakeMoveResult.whoMadeTheMove == 2)
         {
             player2MoveCount++;
-            view.playerLabel2.text = $"Player 2 (Movecount: {player2MoveCount})";
         }
+    }
 
+    private void handleUpdateGameState(UpdateGameState pUpdate)
+    {
+        view.playerLabel1.text = $"Player 1 ({pUpdate.playerOneName})";
+        view.playerLabel2.text = $"Player 2 ({pUpdate.playerTwoName})";
+
+        if (pUpdate.playerAtTurn == 1)
+            view.playerLabel1.text += " (at turn)";
+        else
+            view.playerLabel2.text += " (at turn)";
+    }
+
+    private void Resign()
+    {
+        ResignRequest message = new ResignRequest();
+        fsm.channel.SendMessage(message);
     }
 }

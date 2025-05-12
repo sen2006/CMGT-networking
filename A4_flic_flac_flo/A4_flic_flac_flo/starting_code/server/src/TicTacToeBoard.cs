@@ -33,6 +33,11 @@ namespace server
             Log.LogInfo($"Player {pPlayer} made a move in cell ({column},{row})", this);
         }
 
+        public bool IsAvalibleSpace(int pMove)
+        {
+            return _board.board[pMove] == 0;
+        }
+
         /**
          * Return the inner board data state so we can send it to a client.
          */

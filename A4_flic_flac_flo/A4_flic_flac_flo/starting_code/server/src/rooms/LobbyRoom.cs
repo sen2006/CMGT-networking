@@ -1,5 +1,6 @@
 ﻿using shared;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace server
 {
@@ -26,13 +27,12 @@ namespace server
 			roomJoinedEvent.room = RoomJoinedEvent.Room.LOBBY_ROOM;
 			pMember.SendMessage(roomJoinedEvent);
 
-			//print some info in the lobby (can be made more applicable to the current member that joined)
-			ChatMessage simpleMessage = new ChatMessage();
-			simpleMessage.message = "Client 'John Doe' has joined the lobby!";
-			pMember.SendMessage(simpleMessage);
+            ChatMessage simpleMessage = new ChatMessage();
+            simpleMessage.message = $"Client {_server.GetPlayerInfo(pMember).GetName()} has joined the lobby!";
+			sendToAll(simpleMessage);
 
-			//send information to all clients that the lobby count has changed
-			sendLobbyUpdateCount();
+            //send information to all clients that the lobby count has changed
+            sendLobbyUpdateCount();
 		}
 
 		/**
@@ -49,7 +49,8 @@ namespace server
 
 		protected override void handleNetworkMessage(ASerializable pMessage, TcpMessageChannel pSender)
 		{
-			if (pMessage is ChangeReadyStatusRequest) handleReadyNotification(pMessage as ChangeReadyStatusRequest, pSender);
+			if (pMessage is ChangeReadyStatusRequest readyMessage) handleReadyNotification(readyMessage, pSender);
+			if (pMessage is ChatMessage chatMessage) handleChatMessage(chatMessage, pSender);
 		}
 
 		private void handleReadyNotification(ChangeReadyStatusRequest pReadyNotification, TcpMessageChannel pSender)
@@ -65,13 +66,16 @@ namespace server
 			}
 
 			//do we have enough people for a game and is there no game running yet?
-			if (_readyMembers.Count >= 2 && !_server.GetGameRoom().IsGameInPlay)
+			if (_readyMembers.Count >= 2)
 			{
 				TcpMessageChannel player1 = _readyMembers[0];
 				TcpMessageChannel player2 = _readyMembers[1];
 				removeMember(player1);
 				removeMember(player2);
-				_server.GetGameRoom().StartGame(player1, player2);
+                ChatMessage simpleMessage = new ChatMessage();
+                simpleMessage.message = $"Client {_server.GetPlayerInfo(player1).GetName()} and {_server.GetPlayerInfo(player2).GetName()} started a game!";
+                sendToAll(simpleMessage);
+                _server.GetGameNewRoom().StartGame(player1, player2);
 			}
 
 			//(un)ready-ing / starting a game changes the lobby/ready count so send out an update
@@ -87,5 +91,24 @@ namespace server
 			sendToAll(lobbyInfoMessage);
 		}
 
-	}
+        private void handleChatMessage(ChatMessage message, TcpMessageChannel pSender)
+        {
+			message.message = $"({_server.GetPlayerInfo(pSender).GetName()}) {message.message}";
+			sendToAll(message);
+		}
+
+		public void AnnounceWin(TcpMessageChannel winner)
+		{
+            ChatMessage simpleMessage = new ChatMessage();
+            simpleMessage.message = $"Client {_server.GetPlayerInfo(winner).GetName()} won their game!";
+            sendToAll(simpleMessage);
+        }
+
+        internal void AnnounceResign(TcpMessageChannel winner)
+        {
+            ChatMessage simpleMessage = new ChatMessage();
+            simpleMessage.message = $"Client {_server.GetPlayerInfo(winner).GetName()} won their game by resignation!";
+            sendToAll(simpleMessage);
+        }
+    }
 }
