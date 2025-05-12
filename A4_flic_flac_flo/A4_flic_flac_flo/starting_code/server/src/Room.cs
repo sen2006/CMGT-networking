@@ -132,9 +132,11 @@ namespace server
 		 */
 		protected void sendToAll(ASerializable pMessage)
 		{
-			foreach (TcpMessageChannel member in _members)
+			for (int i = _members.Count-1; i>=0; i--)
 			{
-				member.SendMessage(pMessage);
+				TcpMessageChannel member = _members[i];
+
+                member.SendMessage(pMessage);
 			}
 		}
 

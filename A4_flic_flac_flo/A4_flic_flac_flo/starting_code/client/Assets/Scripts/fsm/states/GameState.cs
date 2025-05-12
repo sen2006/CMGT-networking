@@ -50,10 +50,13 @@ public class GameState : ApplicationStateWithView<GameView>
 
     private void handleRoomJoinedEvent(RoomJoinedEvent pMessage)
     {
-        //did we move to the game room?
         if (pMessage.room == RoomJoinedEvent.Room.LOBBY_ROOM)
         {
             fsm.ChangeState<LobbyState>();
+        }
+        if (pMessage.room == RoomJoinedEvent.Room.END_ROOM)
+        {
+            fsm.ChangeState<EndState>();
         }
     }
 

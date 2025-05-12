@@ -75,7 +75,7 @@ namespace server
                 ChatMessage simpleMessage = new ChatMessage();
                 simpleMessage.message = $"Client {_server.GetPlayerInfo(player1).GetName()} and {_server.GetPlayerInfo(player2).GetName()} started a game!";
                 sendToAll(simpleMessage);
-                _server.GetGameNewRoom().StartGame(player1, player2);
+                _server.GetNewGameRoom().StartGame(player1, player2);
 			}
 
 			//(un)ready-ing / starting a game changes the lobby/ready count so send out an update

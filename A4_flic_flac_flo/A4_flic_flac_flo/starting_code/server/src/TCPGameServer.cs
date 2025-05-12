@@ -37,6 +37,7 @@ namespace server {
 		private LobbyRoom _lobbyRoom;	//this is the room a user moves to after a successful 'login'
 		//private GameRoom _gameRoom;		//this is the room a user moves to when a game is succesfully started
 		private List<GameRoom> _gameRooms = new List<GameRoom>();
+		private List<EndRoom> _endRooms = new List<EndRoom>();
 
 		//stores additional info for a player
 		private Dictionary<TcpMessageChannel, PlayerInfo> _playerInfo = new Dictionary<TcpMessageChannel, PlayerInfo>();
@@ -79,43 +80,50 @@ namespace server {
 					_loginRoom.AddMember(channel);
 				}
 
-                RemoveEmptyGameRooms();
+                RemoveEmptyRooms();
 
 				//now update every single room
 				_loginRoom.Update();
 				_lobbyRoom.Update();
 				foreach (GameRoom gameRoom in _gameRooms)
 					gameRoom.Update();
+                foreach (EndRoom endRoom in _endRooms)
+                    endRoom.Update();
 
-				Thread.Sleep(100);
+                Thread.Sleep(100);
 			}
 
 		}
 
-        private void RemoveEmptyGameRooms()
+        private void RemoveEmptyRooms()
         {
 			
             for (int i = _gameRooms.Count-1; i>=0; i--)
 			{
                 GameRoom gameRoom = _gameRooms[i];
-                if (gameRoom.IsGameFinished())
-                {
-					gameRoom.MoveAllMembers(_lobbyRoom);
-                    _gameRooms.Remove(gameRoom);
-                    Console.WriteLine("removing finished game room");
-                }
-                else if (gameRoom.GetMembers.Count < 2)
+                if (gameRoom.GetMembers.Count < 2)
 				{
+					gameRoom.MoveAllMembers(_lobbyRoom);
 					_gameRooms.Remove(gameRoom);
-					Console.WriteLine("removing empty game room");
+					Console.WriteLine("removing empty GameRoom");
 				}
 			}
+            for (int i = _endRooms.Count - 1; i >= 0; i--)
+            {
+                EndRoom endRoom = _endRooms[i];
+                if (endRoom.GetMembers.Count == 0)
+                {
+                    _endRooms.Remove(endRoom);
+                    Console.WriteLine("removing empty EndRoom");
+                }
+            }
         }
 
         //provide access to the different rooms on the server 
         public LoginRoom GetLoginRoom() { return _loginRoom; }
 		public LobbyRoom GetLobbyRoom() { return _lobbyRoom; }
 		public GameRoom GetGameRoom(int id) { return _gameRooms[id]; }
+		public EndRoom GetEndRoom(int id) { return _endRooms[id]; }
 
 		/**
 		 * Returns a handle to the player info for the given client 
@@ -173,14 +181,24 @@ namespace server {
 			_lobbyRoom.RemoveFaultyMembers();
 			foreach (GameRoom gameRoom in _gameRooms)
 				gameRoom.RemoveFaultyMembers();
+            foreach (EndRoom endRoom in _endRooms)
+                endRoom.RemoveFaultyMembers();
         }
 
-        public GameRoom GetGameNewRoom()
+        public GameRoom GetNewGameRoom()
         {
 			Console.WriteLine("New GameRoom created");
             GameRoom toReturn = new GameRoom(this);
 			_gameRooms.Add(toReturn);
 			return toReturn;
+        }
+
+        public EndRoom GetNewEndRoom()
+        {
+            Console.WriteLine("New EndRoom created");
+            EndRoom toReturn = new EndRoom(this);
+            _endRooms.Add(toReturn);
+            return toReturn;
         }
 
         private static void HeartBeat(object obj)

@@ -5,7 +5,7 @@
 	 */
 	public class RoomJoinedEvent : ASerializable
 	{
-		public enum Room { LOGIN_ROOM, LOBBY_ROOM, GAME_ROOM };
+		public enum Room { LOGIN_ROOM, LOBBY_ROOM, GAME_ROOM, END_ROOM };
 		public Room room;
 
 		public override void Serialize(Packet pPacket)
